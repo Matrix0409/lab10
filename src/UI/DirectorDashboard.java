@@ -5,6 +5,8 @@ import Business.UserAccount.LibraryDirector;
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
+import Business.WorkQueue.WorkRequest;
+import Business.WorkQueue.WorkRequestDAO;
 
 public class DirectorDashboard extends JFrame {
     private LibraryDirector director;
@@ -224,26 +226,49 @@ logoutBtn.addActionListener(e -> {
         }
     }
     
-    private void requestAcquisition() {
-        JTextField title = new JTextField();
-        JTextField author = new JTextField();
-        JTextArea reason = new JTextArea(3, 20);
-        reason.setLineWrap(true);
+   private void requestAcquisition() {
+    JTextField bookTitle = new JTextField();
+    JTextField author = new JTextField();
+    JTextField quantity = new JTextField("1");
+    JTextArea reason = new JTextArea(3, 20);
+    reason.setLineWrap(true);
+    
+    JPanel panel = new JPanel(new GridLayout(4, 2, 10, 10));
+    panel.add(new JLabel("Book Title:"));
+    panel.add(bookTitle);
+    panel.add(new JLabel("Author:"));
+    panel.add(author);
+    panel.add(new JLabel("Quantity:"));
+    panel.add(quantity);
+    panel.add(new JLabel("Reason:"));
+    panel.add(new JScrollPane(reason));
+    
+    int result = JOptionPane.showConfirmDialog(this, panel, 
+        "Request Book Acquisition from Central Library", 
+        JOptionPane.OK_CANCEL_OPTION);
+    
+    if (result == JOptionPane.OK_OPTION) {
+        String description = "Book Acquisition: " + bookTitle.getText() + 
+                           " by " + author.getText() + 
+                           " (Qty: " + quantity.getText() + ")\nReason: " + reason.getText();
         
-        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
-        panel.add(new JLabel("Book Title:"));
-        panel.add(title);
-        panel.add(new JLabel("Author:"));
-        panel.add(author);
-        panel.add(new JLabel("Reason:"));
-        panel.add(new JScrollPane(reason));
+        WorkRequest acquisitionRequest = new WorkRequest(
+            "Book Acquisition Request",
+            director.getUserId(),
+            1, // From Community Library  
+            2, // To Central Library (INTER-ENTERPRISE!)
+            description
+        );
         
-        int result = JOptionPane.showConfirmDialog(this, panel, "Request from Central Library", JOptionPane.OK_CANCEL_OPTION);
-        
-        if (result == JOptionPane.OK_OPTION) {
-            JOptionPane.showMessageDialog(this, "✓ Acquisition request sent!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        WorkRequestDAO dao = new WorkRequestDAO(acquisitionRequest);
+        if (dao.create()) {
+            JOptionPane.showMessageDialog(this, 
+                "✓ Acquisition request sent to Central Library!\nRequest ID: " + acquisitionRequest.getRequestId(), 
+                "Success", 
+                JOptionPane.INFORMATION_MESSAGE);
         }
     }
+}
     
     private void manageStaff() {
         JOptionPane.showMessageDialog(this, "Staff management - Coming soon!", "Feature", JOptionPane.INFORMATION_MESSAGE);

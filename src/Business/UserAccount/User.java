@@ -10,6 +10,13 @@ public abstract class User {
     protected String password;
     protected String email;
     protected String role;
+    // add near the other fields
+protected int enterpriseId = 1; // default enterprise id (change if needed)
+
+// add getter & setter
+public int getEnterpriseId() { return enterpriseId; }
+public void setEnterpriseId(int enterpriseId) { this.enterpriseId = enterpriseId; }
+
     
     public User() {}
     

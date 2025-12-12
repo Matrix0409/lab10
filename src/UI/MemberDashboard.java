@@ -7,11 +7,15 @@ package UI;
 import Business.UserAccount.Member;
 import Business.Book.Book;
 import Business.Book.BookDAO;
+import Business.WorkQueue.WorkRequest;
+import Business.WorkQueue.WorkRequestDAO;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.util.List;
+import Business.WorkQueue.WorkRequest;
+import Business.WorkQueue.WorkRequestDAO;
 
 public class MemberDashboard extends JFrame {
     private Member member;
@@ -237,29 +241,98 @@ logoutBtn.addActionListener(e -> {
         }
     }
     
-    private void requestCheckout() {
-        int row = table.getSelectedRow();
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a book", "No Selection", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
+    
+      private void requestCheckout() {
+    int row = table.getSelectedRow();
+    if (row == -1) {
+        JOptionPane.showMessageDialog(this, "Please select a book", "No Selection", JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+    
+    int bookId = (int) model.getValueAt(row, 0);
+    String title = model.getValueAt(row, 2).toString();
+    String author = model.getValueAt(row, 3).toString();
+    
+    int result = JOptionPane.showConfirmDialog(this, 
+        "Request checkout for:\n" + title + " by " + author + "?", 
+        "Confirm Checkout Request", 
+        JOptionPane.YES_NO_OPTION);
+    
+    if (result == JOptionPane.YES_OPTION) {
+        String description = "Book Checkout: " + title + " (ID: " + bookId + ") by " + author;
+        WorkRequest workRequest = new WorkRequest(
+            "Book Checkout Request",
+            member.getUserId(),
+            1, // From Community Library
+            1, // To Community Library (internal)
+            description
+        );
         
-        String title = model.getValueAt(row, 2).toString();
-        int result = JOptionPane.showConfirmDialog(this, 
-            "Request checkout for:\n" + title + "?", 
-            "Confirm", JOptionPane.YES_NO_OPTION);
-        
-        if (result == JOptionPane.YES_OPTION) {
+        WorkRequestDAO dao = new WorkRequestDAO(workRequest);
+        if (dao.create()) {
             JOptionPane.showMessageDialog(this, 
-                "✓ Checkout request sent to librarian!", 
-                "Success", JOptionPane.INFORMATION_MESSAGE);
+                "✓ Checkout request sent to librarian!\nRequest ID: " + workRequest.getRequestId(), 
+                "Success", 
+                JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, 
+                "Failed to create request", 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
         }
     }
+}
 
 private void viewHistory() {
-    JOptionPane.showMessageDialog(this, 
-        "Transaction history feature coming soon!", 
-        "My History", JOptionPane.INFORMATION_MESSAGE);
+    JFrame historyFrame = new JFrame("My Checkout Requests");
+    historyFrame.setSize(900, 400);
+    historyFrame.setLocationRelativeTo(this);
+    
+    JPanel panel = new JPanel(new BorderLayout(10, 10));
+    panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+    panel.setBackground(Color.WHITE);
+    
+    String[] columns = {"Request ID", "Type", "Description", "Date", "Status"};
+    DefaultTableModel requestModel = new DefaultTableModel(columns, 0) {
+        public boolean isCellEditable(int row, int col) { return false; }
+    };
+    
+    JTable requestTable = new JTable(requestModel);
+    requestTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    requestTable.setRowHeight(30);
+    requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+    requestTable.getTableHeader().setBackground(new Color(52, 152, 219));
+    requestTable.getTableHeader().setForeground(Color.WHITE);
+    
+    List<WorkRequest> requests = WorkRequestDAO.getRequestsByMember(member.getUserId());
+    for (WorkRequest wr : requests) {
+        requestModel.addRow(new Object[]{
+            wr.getRequestId(),
+            wr.getType(),
+            wr.getDescription(),
+            wr.getRequestDate(),
+            wr.getStatus()
+        });
+    }
+    
+    JScrollPane scroll = new JScrollPane(requestTable);
+    panel.add(scroll, BorderLayout.CENTER);
+    
+    JButton closeBtn = new JButton("Close");
+    closeBtn.setBackground(new Color(149, 165, 166));
+    closeBtn.setForeground(Color.WHITE);
+    closeBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+    closeBtn.setFocusPainted(false);
+    closeBtn.addActionListener(e -> historyFrame.dispose());
+    
+    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+    buttonPanel.setBackground(Color.WHITE);
+    buttonPanel.add(closeBtn);
+    
+    panel.add(buttonPanel, BorderLayout.SOUTH);
+    
+    historyFrame.add(panel);
+    historyFrame.setVisible(true);
 }
 }
     

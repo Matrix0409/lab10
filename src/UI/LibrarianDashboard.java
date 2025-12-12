@@ -10,6 +10,8 @@ import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.util.List;
+import Business.WorkQueue.WorkRequest;
+import Business.WorkQueue.WorkRequestDAO;
 
 public class LibrarianDashboard extends JFrame {
     private Librarian librarian;
@@ -142,9 +144,8 @@ logoutBtn.addActionListener(e -> {
         JPanel transPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
         transPanel.setBackground(Color.WHITE);
         
-        JButton checkout = createActionButton("📤 Process Checkout", new Color(241, 196, 15), 170);
-        checkout.addActionListener(e -> processCheckout());
-        
+     JButton checkout = createActionButton("📤 View Requests", new Color(241, 196, 15), 170);
+checkout.addActionListener(e -> viewPendingRequests());
         JButton returnBook = createActionButton("📥 Process Return", new Color(155, 89, 182), 160);
         returnBook.addActionListener(e -> processReturn());
         
@@ -321,16 +322,202 @@ logoutBtn.addActionListener(e -> {
             }
         }
     }
+    private void viewPendingRequests() {
+    JFrame requestsFrame = new JFrame("Pending Checkout Requests");
+    requestsFrame.setSize(1000, 500);
+    requestsFrame.setLocationRelativeTo(this);
     
-    private void processCheckout() {
-        JOptionPane.showMessageDialog(this, "Checkout feature - Coming soon!", "Feature", JOptionPane.INFORMATION_MESSAGE);
+    JPanel panel = new JPanel(new BorderLayout(10, 10));
+    panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+    panel.setBackground(Color.WHITE);
+    
+    JLabel titleLabel = new JLabel("Pending Checkout Requests from Members");
+    titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+    titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+    panel.add(titleLabel, BorderLayout.NORTH);
+    
+    String[] columns = {"ID", "Type", "Member", "Description", "Date", "Status"};
+    DefaultTableModel requestModel = new DefaultTableModel(columns, 0) {
+        public boolean isCellEditable(int row, int col) { return false; }
+    };
+    
+    JTable requestTable = new JTable(requestModel);
+    requestTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    requestTable.setRowHeight(35);
+    requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+    requestTable.getTableHeader().setBackground(new Color(46, 204, 113));
+    requestTable.getTableHeader().setForeground(Color.WHITE);
+    
+    List<WorkRequest> requests = WorkRequestDAO.getPendingRequests();
+    for (WorkRequest wr : requests) {
+        requestModel.addRow(new Object[]{
+            wr.getRequestId(),
+            wr.getType(),
+            wr.getRequesterId(),
+            wr.getDescription(),
+            wr.getRequestDate(),
+            wr.getStatus()
+        });
     }
+    
+    JScrollPane scroll = new JScrollPane(requestTable);
+    panel.add(scroll, BorderLayout.CENTER);
+    
+    JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+    buttons.setBackground(Color.WHITE);
+    
+    JButton approveBtn = new JButton("✅ Approve Request");
+    approveBtn.setBackground(new Color(46, 204, 113));
+    approveBtn.setForeground(Color.WHITE);
+    approveBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    approveBtn.setPreferredSize(new Dimension(160, 40));
+    approveBtn.setFocusPainted(false);
+    
+    approveBtn.addActionListener(e -> {
+        int selectedRow = requestTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(requestsFrame, "Please select a request");
+            return;
+        }
+        
+        int requestId = (int) requestModel.getValueAt(selectedRow, 0);
+        String desc = requestModel.getValueAt(selectedRow, 3).toString();
+        
+        int confirm = JOptionPane.showConfirmDialog(requestsFrame,
+            "Approve: " + desc + "?",
+            "Confirm Approval",
+            JOptionPane.YES_NO_OPTION);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            WorkRequestDAO dao = new WorkRequestDAO(new WorkRequest());
+            WorkRequest wr = (WorkRequest) dao.read(requestId);
+            
+            if (wr != null) {
+                wr.setStatus("Approved");
+                wr.setApproverId(librarian.getUserId());
+                
+                WorkRequestDAO updateDao = new WorkRequestDAO(wr);
+                if (updateDao.update()) {
+                    JOptionPane.showMessageDialog(requestsFrame, "✓ Request approved!");
+                    requestModel.setValueAt("Approved", selectedRow, 5);
+                }
+            }
+        }
+    });
+    
+    JButton rejectBtn = new JButton("❌ Reject Request");
+    rejectBtn.setBackground(new Color(231, 76, 60));
+    rejectBtn.setForeground(Color.WHITE);
+    rejectBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    rejectBtn.setPreferredSize(new Dimension(150, 40));
+    rejectBtn.setFocusPainted(false);
+    
+    rejectBtn.addActionListener(e -> {
+        int selectedRow = requestTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(requestsFrame, "Please select a request");
+            return;
+        }
+        
+        String reason = JOptionPane.showInputDialog(requestsFrame, "Reason for rejection:");
+        if (reason != null && !reason.trim().isEmpty()) {
+            int requestId = (int) requestModel.getValueAt(selectedRow, 0);
+            WorkRequestDAO dao = new WorkRequestDAO(new WorkRequest());
+            WorkRequest wr = (WorkRequest) dao.read(requestId);
+            
+            if (wr != null) {
+                wr.setStatus("Rejected");
+                
+                WorkRequestDAO updateDao = new WorkRequestDAO(wr);
+                if (updateDao.update()) {
+                    JOptionPane.showMessageDialog(requestsFrame, "Request rejected");
+                    requestModel.setValueAt("Rejected", selectedRow, 5);
+                }
+            }
+        }
+    });
+    
+    JButton refreshBtn = new JButton("🔄 Refresh");
+    refreshBtn.setBackground(new Color(52, 152, 219));
+    refreshBtn.setForeground(Color.WHITE);
+    refreshBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    refreshBtn.setPreferredSize(new Dimension(120, 40));
+    refreshBtn.setFocusPainted(false);
+    refreshBtn.addActionListener(e -> {
+        requestModel.setRowCount(0);
+        List<WorkRequest> updated = WorkRequestDAO.getPendingRequests();
+        for (WorkRequest wr : updated) {
+            requestModel.addRow(new Object[]{
+                wr.getRequestId(), wr.getType(), wr.getRequesterId(),
+                wr.getDescription(), wr.getRequestDate(), wr.getStatus()
+            });
+        }
+    });
+    
+    JButton closeBtn = new JButton("Close");
+    closeBtn.setBackground(new Color(149, 165, 166));
+    closeBtn.setForeground(Color.WHITE);
+    closeBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    closeBtn.setPreferredSize(new Dimension(100, 40));
+    closeBtn.setFocusPainted(false);
+    closeBtn.addActionListener(e -> requestsFrame.dispose());
+    
+    buttons.add(approveBtn);
+    buttons.add(rejectBtn);
+    buttons.add(refreshBtn);
+    buttons.add(closeBtn);
+    
+    panel.add(buttons, BorderLayout.SOUTH);
+    
+    requestsFrame.add(panel);
+    requestsFrame.setVisible(true);
+}
+  
     
     private void processReturn() {
         JOptionPane.showMessageDialog(this, "Return feature - Coming soon!", "Feature", JOptionPane.INFORMATION_MESSAGE);
     }
     
     private void createILL() {
-        JOptionPane.showMessageDialog(this, "ILL Request feature - Coming soon!", "Feature", JOptionPane.INFORMATION_MESSAGE);
+    JTextField bookTitle = new JTextField();
+    JTextField author = new JTextField();
+    JTextField isbn = new JTextField();
+    JTextArea reason = new JTextArea(3, 20);
+    reason.setLineWrap(true);
+    
+    JPanel panel = new JPanel(new GridLayout(4, 2, 10, 10));
+    panel.add(new JLabel("Book Title:"));
+    panel.add(bookTitle);
+    panel.add(new JLabel("Author:"));
+    panel.add(author);
+    panel.add(new JLabel("ISBN:"));
+    panel.add(isbn);
+    panel.add(new JLabel("Reason:"));
+    panel.add(new JScrollPane(reason));
+    
+    int result = JOptionPane.showConfirmDialog(this, panel, 
+        "Inter-Library Loan Request to Central Library", 
+        JOptionPane.OK_CANCEL_OPTION);
+    
+    if (result == JOptionPane.OK_OPTION) {
+        String description = "ILL Request: " + bookTitle.getText() + " by " + author.getText() + 
+                           " (ISBN: " + isbn.getText() + ")\nReason: " + reason.getText();
+        
+        WorkRequest illRequest = new WorkRequest(
+            "ILL Request",
+            librarian.getUserId(),
+            1, // From Community Library
+            2, // To Central Library (INTER-ENTERPRISE!)
+            description
+        );
+        
+        WorkRequestDAO dao = new WorkRequestDAO(illRequest);
+        if (dao.create()) {
+            JOptionPane.showMessageDialog(this, 
+                "✓ ILL Request sent to Central Library!\nRequest ID: " + illRequest.getRequestId(), 
+                "Success", 
+                JOptionPane.INFORMATION_MESSAGE);
+        }
     }
+}
 }
