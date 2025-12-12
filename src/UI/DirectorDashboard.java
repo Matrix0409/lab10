@@ -100,6 +100,10 @@ public class DirectorDashboard extends JFrame {
         JButton approve = createActionButton("✅ Approve", new Color(46, 204, 113), 140);
         approve.addActionListener(e -> approveRequest());
         
+        JButton myRequests = createActionButton("📋 My Requests", new Color(52, 152, 219), 140);
+myRequests.addActionListener(e -> viewMyAcquisitionRequests());
+
+        
         JButton reject = createActionButton("❌ Reject", new Color(231, 76, 60), 130);
         reject.addActionListener(e -> rejectRequest());
         
@@ -133,6 +137,7 @@ logoutBtn.addActionListener(e -> {
         bottom.add(staff);
         bottom.add(reports);
         bottom.add(logoutBtn);
+        bottom.add(myRequests);
         
         main.add(bottom, BorderLayout.SOUTH);
         add(main);
@@ -283,4 +288,110 @@ logoutBtn.addActionListener(e -> {
             JOptionPane.showMessageDialog(this, "Generating: " + selected, "Report", JOptionPane.INFORMATION_MESSAGE);
         }
     }
+    
+private void viewMyAcquisitionRequests() {
+    JFrame requestsFrame = new JFrame("My Acquisition Requests");
+    requestsFrame.setSize(1000, 500);
+    requestsFrame.setLocationRelativeTo(this);
+    
+    JPanel panel = new JPanel(new BorderLayout(10, 10));
+    panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+    panel.setBackground(Color.WHITE);
+    
+    JLabel titleLabel = new JLabel("Book Acquisition Requests to Central Library");
+    titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+    titleLabel.setForeground(new Color(155, 89, 182));
+    titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+    panel.add(titleLabel, BorderLayout.NORTH);
+    
+    String[] columns = {"Request ID", "Type", "Description", "Date", "Status", "Route (From→To)"};
+    DefaultTableModel requestModel = new DefaultTableModel(columns, 0) {
+        public boolean isCellEditable(int row, int col) { return false; }
+    };
+    
+    JTable requestTable = new JTable(requestModel);
+    requestTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    requestTable.setRowHeight(35);
+    requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+    requestTable.getTableHeader().setBackground(new Color(155, 89, 182));
+    requestTable.getTableHeader().setForeground(Color.WHITE);
+    
+    // Load director's acquisition requests
+    java.util.List<WorkRequest> allRequests = WorkRequestDAO.getRequestsByMember(director.getUserId());
+    for (WorkRequest wr : allRequests) {
+        String route = "Enterprise " + wr.getFromEnterpriseId() + " → Enterprise " + wr.getToEnterpriseId();
+        requestModel.addRow(new Object[]{
+            wr.getRequestId(),
+            wr.getType(),
+            wr.getDescription(),
+            wr.getRequestDate(),
+            wr.getStatus(),
+            route
+        });
+    }
+    
+    JScrollPane scroll = new JScrollPane(requestTable);
+    panel.add(scroll, BorderLayout.CENTER);
+    
+    // Info panel showing inter-enterprise communication
+    JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
+    bottomPanel.setBackground(Color.WHITE);
+    
+    JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
+    infoPanel.setBackground(new Color(255, 250, 205));
+    infoPanel.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(241, 196, 15), 2),
+        BorderFactory.createEmptyBorder(10, 10, 10, 10)
+    ));
+    
+    JLabel infoIcon = new JLabel("📍");
+    infoIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
+    infoPanel.add(infoIcon);
+    
+    JLabel infoLabel = new JLabel("Inter-Enterprise Route: 1 (Community Library) → 2 (Central Library)");
+    infoLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    infoPanel.add(infoLabel);
+    
+    bottomPanel.add(infoPanel, BorderLayout.NORTH);
+    
+    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+    buttonPanel.setBackground(Color.WHITE);
+    
+    JButton refreshBtn = new JButton("🔄 Refresh");
+    refreshBtn.setBackground(new Color(52, 152, 219));
+    refreshBtn.setForeground(Color.WHITE);
+    refreshBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    refreshBtn.setPreferredSize(new Dimension(120, 40));
+    refreshBtn.setFocusPainted(false);
+    refreshBtn.addActionListener(e -> {
+        requestModel.setRowCount(0);
+        java.util.List<WorkRequest> updated = WorkRequestDAO.getRequestsByMember(director.getUserId());
+        for (WorkRequest wr : updated) {
+            String route = "Enterprise " + wr.getFromEnterpriseId() + " → Enterprise " + wr.getToEnterpriseId();
+            requestModel.addRow(new Object[]{
+                wr.getRequestId(), wr.getType(), wr.getDescription(),
+                wr.getRequestDate(), wr.getStatus(), route
+            });
+        }
+    });
+    
+    JButton closeBtn = new JButton("Close");
+    closeBtn.setBackground(new Color(149, 165, 166));
+    closeBtn.setForeground(Color.WHITE);
+    closeBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+    closeBtn.setPreferredSize(new Dimension(100, 40));
+    closeBtn.setFocusPainted(false);
+    closeBtn.addActionListener(e -> requestsFrame.dispose());
+    
+    buttonPanel.add(refreshBtn);
+    buttonPanel.add(closeBtn);
+    
+    bottomPanel.add(buttonPanel, BorderLayout.SOUTH);
+    
+    panel.add(bottomPanel, BorderLayout.SOUTH);
+    
+    requestsFrame.add(panel);
+    requestsFrame.setVisible(true);
+}    
+    
 }
